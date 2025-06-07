@@ -1,62 +1,106 @@
+import os
+import threading
 import tkinter as tk
 from tkinter import filedialog, scrolledtext
 
-class LLMChatApp:
+from model_downloader import download_model, MODEL_PATH
+
+class ChatApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Offline LLM Assistant")
 
-        # Chat display
-        self.chat_display = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=80, height=25, state='disabled')
-        self.chat_display.grid(row=0, column=0, columnspan=3, padx=10, pady=10)
+        # Wider chat area (width increased from 80 to 110)
+        self.chat_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, state='disabled', width=110, height=25)
+        self.chat_area.pack(padx=10, pady=10)
 
-        # User input
-        self.input_text = tk.StringVar()
-        self.input_entry = tk.Entry(root, textvariable=self.input_text, width=60)
-        self.input_entry.grid(row=1, column=0, padx=10, pady=5)
-        self.input_entry.bind("<Return>", self.handle_send)
+        # Configure tags with colors
+        self.chat_area.tag_config('system', foreground='blue')
+        self.chat_area.tag_config('llm', foreground='green')
+        self.chat_area.tag_config('user', foreground='orange')
 
-        # Send button
-        self.send_button = tk.Button(root, text="Send", command=self.handle_send)
-        self.send_button.grid(row=1, column=1, padx=5, pady=5)
+        # Frame for entry + send button
+        entry_frame = tk.Frame(root)
+        entry_frame.pack(padx=10, pady=(0, 10), fill=tk.X)
 
-        # Folder select button
-        self.folder_button = tk.Button(root, text="Select Folder", command=self.select_folder)
-        self.folder_button.grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        self.entry = tk.Text(entry_frame, height=4, width=90)  # Multi-line input box
+        self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.entry.bind("<Shift-Return>", lambda e: self.insert_newline())
+        self.entry.bind("<Return>", self.send_message)
 
-        # File select button
-        self.file_button = tk.Button(root, text="Select File", command=self.select_file)
-        self.file_button.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        self.send_button = tk.Button(entry_frame, text="Send", command=self.send_message)
+        self.send_button.pack(side=tk.LEFT, padx=(5, 0))
+
+        # Frame for file/folder buttons aligned on one side (left)
+        button_frame = tk.Frame(root)
+        button_frame.pack(padx=10, pady=5, anchor='w')  # 'w' aligns to left
+
+        self.file_button = tk.Button(button_frame, text="Select File", command=self.select_file)
+        self.file_button.pack(side=tk.LEFT, padx=(0, 5))
+
+        self.folder_button = tk.Button(button_frame, text="Select Folder", command=self.select_folder)
+        self.folder_button.pack(side=tk.LEFT)
+
+        self.append_chat("System", "Checking if model exists...")
+
+        threading.Thread(target=self.check_and_prepare_model, daemon=True).start()
 
     def append_chat(self, sender, message):
-        self.chat_display.configure(state='normal')
-        self.chat_display.insert(tk.END, f"{sender}: {message}\n\n")
-        self.chat_display.configure(state='disabled')
-        self.chat_display.see(tk.END)
+        self.chat_area.config(state='normal')
+        if sender.lower() == "system":
+            tag = 'system'
+        elif sender.lower() == "llm":
+            tag = 'llm'
+        elif sender.lower() == "you":
+            tag = 'user'
+        else:
+            tag = None
 
-    def handle_send(self, event=None):
-        user_message = self.input_text.get().strip()
-        if user_message:
-            self.append_chat("You", user_message)
-            self.input_text.set("")  # Clear input
-            self.root.after(100, self.fake_llm_response, user_message)  # Placeholder response
+        if tag:
+            self.chat_area.insert(tk.END, f"{sender}: {message}\n", tag)
+        else:
+            self.chat_area.insert(tk.END, f"{sender}: {message}\n")
 
-    def fake_llm_response(self, user_message):
-        # TODO: Replace with actual LLM logic
-        response = f"(LLM Response to: {user_message})"
-        self.append_chat("Assistant", response)
+        self.chat_area.config(state='disabled')
+        self.chat_area.see(tk.END)
 
-    def select_folder(self):
-        folder = filedialog.askdirectory()
-        if folder:
-            self.append_chat("System", f"Selected folder: {folder}")
+    def send_message(self, event=None):
+        message = self.entry.get("1.0", tk.END).strip()
+        if message:
+            self.entry.delete("1.0", tk.END)
+            self.append_chat("You", message)
+            self.append_chat("LLM", "This is a placeholder response.")
+        return "break"
+
 
     def select_file(self):
-        file = filedialog.askopenfilename()
-        if file:
-            self.append_chat("System", f"Selected file: {file}")
+        file_path = filedialog.askopenfilename()
+        if file_path:
+            self.append_chat("System", f"Selected file: {file_path}")
+
+    def select_folder(self):
+        folder_path = filedialog.askdirectory()
+        if folder_path:
+            self.append_chat("System", f"Selected folder: {folder_path}")
+
+    def insert_newline(self):
+        self.entry.insert(tk.INSERT, "\n")
+        return "break"
+
+
+
+    def check_and_prepare_model(self):
+        if os.path.exists(MODEL_PATH):
+            self.append_chat("System", "Model already exists, ready to use.")
+        else:
+            self.append_chat("System", "Model not found, downloading now...")
+            try:
+                download_model()
+                self.append_chat("System", "Model downloaded successfully.")
+            except Exception as e:
+                self.append_chat("Error", f"Failed to download model: {e}")
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = LLMChatApp(root)
+    app = ChatApp(root)
     root.mainloop()
