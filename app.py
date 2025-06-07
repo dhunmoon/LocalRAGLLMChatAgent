@@ -2,13 +2,14 @@ import os
 import threading
 import tkinter as tk
 from tkinter import filedialog, scrolledtext
-
+from llm_engine import LLMEngine
 from model_downloader import download_model, MODEL_PATH
 
 class ChatApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Offline LLM Assistant")
+
 
         # Wider chat area (width increased from 80 to 110)
         self.chat_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, state='disabled', width=110, height=25)
@@ -18,6 +19,11 @@ class ChatApp:
         self.chat_area.tag_config('system', foreground='blue')
         self.chat_area.tag_config('llm', foreground='green')
         self.chat_area.tag_config('user', foreground='orange')
+
+        self.llm = None
+        self.append_chat("System", "Loading LLM...")
+        threading.Thread(target=self.load_llm, daemon=True).start()
+
 
         # Frame for entry + send button
         entry_frame = tk.Frame(root)
@@ -45,6 +51,13 @@ class ChatApp:
 
         threading.Thread(target=self.check_and_prepare_model, daemon=True).start()
 
+    def load_llm(self):
+        try:
+            self.llm = LLMEngine()
+            self.append_chat("System", "LLM loaded and ready.")
+        except Exception as e:
+            self.append_chat("System", f"Failed to load LLM: {e}")
+
     def append_chat(self, sender, message):
         self.chat_area.config(state='normal')
         if sender.lower() == "system":
@@ -69,8 +82,21 @@ class ChatApp:
         if message:
             self.entry.delete("1.0", tk.END)
             self.append_chat("You", message)
-            self.append_chat("LLM", "This is a placeholder response.")
+
+            def process_response():
+                if not self.llm:
+                    self.append_chat("LLM", "LLM not loaded yet.")
+                    return
+                try:
+                    reply = self.llm.ask(message)
+                    self.append_chat("LLM", reply)
+                except Exception as e:
+                    self.append_chat("LLM", f"Error: {e}")
+
+            threading.Thread(target=process_response, daemon=True).start()
+
         return "break"
+
 
 
     def select_file(self):
