@@ -9,6 +9,7 @@ class ChatApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Offline LLM Assistant")
+        self.chat_history = []  # List of (role, message) tuples
 
         self.system_prompt = "You are a helpful assistant."  # Default system prompt
 
@@ -84,19 +85,32 @@ class ChatApp:
         self.chat_area.config(state='disabled')
         self.chat_area.see(tk.END)
 
+    def build_prompt(self):
+        prompt = f"<|system|>\n{self.system_prompt}\n"
+        for role, message in self.chat_history:
+            if role == "user":
+                prompt += f"<|user|>\n{message}\n"
+            elif role == "assistant":
+                prompt += f"<|assistant|>\n{message}\n"
+        prompt += "<|assistant|>\n"
+        return prompt
+
     def send_message(self, event=None):
         message = self.entry.get("1.0", tk.END).strip()
         if message:
             self.entry.delete("1.0", tk.END)
             self.append_chat("You", message)
+            self.chat_history.append(("user", message))  # Add user message to history
 
             def process_response():
                 if not self.llm:
                     self.append_chat("LLM", "LLM not loaded yet.")
                     return
                 try:
-                    reply = self.llm.ask(message)
+                    prompt = self.build_prompt()
+                    reply = self.llm.ask(prompt)
                     self.append_chat("LLM", reply)
+                    self.chat_history.append(("assistant", reply))  # Add assistant reply to history
                 except Exception as e:
                     self.append_chat("LLM", f"Error: {e}")
 
@@ -148,6 +162,7 @@ class ChatApp:
 
         def save_prompt():
             self.system_prompt = text_box.get("1.0", END).strip()
+            self.chat_history = []
             popup.destroy()
             self.system_prompt_label.config(text=f"System Prompt: {self.system_prompt}")
             self.llm = LLMEngine(system_prompt=self.system_prompt)

@@ -9,11 +9,7 @@ class LLMEngine:
         )
         self.system_prompt = system_prompt
 
-    def ask(self, user_input):
-        prompt = f"<|system|>\n{self.system_prompt}\n<|user|>\n{user_input}\n<|assistant|>\n"
-        print("\n##############################################\n")
-        print(prompt);
-        print("\n##############################################\n")
+    def ask(self, prompt):
         output = self.model(
             prompt,
             max_tokens=256,
