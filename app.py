@@ -21,9 +21,6 @@ class ChatApp:
         self.chat_area.tag_config('user', foreground='orange')
 
         self.llm = None
-        self.append_chat("System", "Loading LLM...")
-        threading.Thread(target=self.load_llm, daemon=True).start()
-
 
         # Frame for entry + send button
         entry_frame = tk.Frame(root)
@@ -117,12 +114,15 @@ class ChatApp:
 
     def check_and_prepare_model(self):
         if os.path.exists(MODEL_PATH):
+            self.append_chat("System", "Loading LLM...")
+            threading.Thread(target=self.load_llm, daemon=True).start()
             self.append_chat("System", "Model already exists, ready to use.")
         else:
             self.append_chat("System", "Model not found, downloading now...")
             try:
                 download_model()
                 self.append_chat("System", "Model downloaded successfully.")
+                threading.Thread(target=self.load_llm, daemon=True).start()
             except Exception as e:
                 self.append_chat("Error", f"Failed to download model: {e}")
 
