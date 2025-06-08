@@ -1,7 +1,7 @@
 import os
 import threading
 import tkinter as tk
-from tkinter import filedialog, scrolledtext
+from tkinter import filedialog, scrolledtext, simpledialog, Toplevel, Label, Text, Button, END
 from llm_engine import LLMEngine
 from model_downloader import download_model, MODEL_PATH
 
@@ -10,6 +10,11 @@ class ChatApp:
         self.root = root
         self.root.title("Offline LLM Assistant")
 
+        self.system_prompt = "You are a helpful assistant."  # Default system prompt
+
+        # System prompt display at the top
+        self.system_prompt_label = tk.Label(root, text=f"System Prompt: {self.system_prompt}", anchor='w', fg='blue', wraplength=900, justify='left')
+        self.system_prompt_label.pack(fill=tk.X, padx=10, pady=(10, 0))
 
         # Wider chat area (width increased from 80 to 110)
         self.chat_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, state='disabled', width=110, height=25)
@@ -34,7 +39,7 @@ class ChatApp:
         self.send_button = tk.Button(entry_frame, text="Send", command=self.send_message)
         self.send_button.pack(side=tk.LEFT, padx=(5, 0))
 
-        # Frame for file/folder buttons aligned on one side (left)
+        # Frame for file/folder/system prompt buttons aligned on one side (left)
         button_frame = tk.Frame(root)
         button_frame.pack(padx=10, pady=5, anchor='w')  # 'w' aligns to left
 
@@ -42,7 +47,11 @@ class ChatApp:
         self.file_button.pack(side=tk.LEFT, padx=(0, 5))
 
         self.folder_button = tk.Button(button_frame, text="Select Folder", command=self.select_folder)
-        self.folder_button.pack(side=tk.LEFT)
+        self.folder_button.pack(side=tk.LEFT, padx=(0, 5))
+
+        # System Prompt Button
+        self.system_prompt_button = tk.Button(button_frame, text="System Prompt", command=self.show_system_prompt_popup)
+        self.system_prompt_button.pack(side=tk.LEFT)
 
         self.append_chat("System", "Checking if model exists...")
 
@@ -50,7 +59,8 @@ class ChatApp:
 
     def load_llm(self):
         try:
-            self.llm = LLMEngine()
+            self.llm = LLMEngine(system_prompt=self.system_prompt)
+            # self.llm = LLMEngine(system_prompt=self.system_prompt)
             self.append_chat("System", "LLM loaded and ready.")
         except Exception as e:
             self.append_chat("System", f"Failed to load LLM: {e}")
@@ -94,8 +104,6 @@ class ChatApp:
 
         return "break"
 
-
-
     def select_file(self):
         file_path = filedialog.askopenfilename()
         if file_path:
@@ -110,8 +118,6 @@ class ChatApp:
         self.entry.insert(tk.INSERT, "\n")
         return "break"
 
-
-
     def check_and_prepare_model(self):
         if os.path.exists(MODEL_PATH):
             self.append_chat("System", "Loading LLM...")
@@ -125,6 +131,34 @@ class ChatApp:
                 threading.Thread(target=self.load_llm, daemon=True).start()
             except Exception as e:
                 self.append_chat("Error", f"Failed to download model: {e}")
+
+    def show_system_prompt_popup(self):
+        popup = Toplevel(self.root)
+        popup.title("Edit System Prompt")
+        popup.transient(self.root)
+        popup.grab_set()
+        popup.geometry("600x200")
+
+        label = Label(popup, text="Enter system prompt:")
+        label.pack(pady=(10, 0))
+
+        text_box = Text(popup, height=5, width=70)
+        text_box.pack(padx=10, pady=10)
+        text_box.insert(END, self.system_prompt)
+
+        def save_prompt():
+            self.system_prompt = text_box.get("1.0", END).strip()
+            popup.destroy()
+            self.system_prompt_label.config(text=f"System Prompt: {self.system_prompt}")
+            self.llm = LLMEngine(system_prompt=self.system_prompt)
+            
+            # Reload LLM with new system prompt
+            self.append_chat("System", "Reloading LLM with new system prompt...")
+            # This is reloading the model withthe system proompt no need to load it again.
+            # threading.Thread(target=self.load_llm, daemon=True).start()
+
+        save_button = Button(popup, text="Save", command=save_prompt)
+        save_button.pack(pady=(0, 10))
 
 if __name__ == "__main__":
     root = tk.Tk()
